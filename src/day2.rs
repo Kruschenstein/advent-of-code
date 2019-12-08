@@ -90,8 +90,31 @@ pub fn program_first_place_value_during_1202(filename: &str) -> io::Result<i32> 
 }
 
 fn reset_memory_before_1202(memory: &mut Vec<i32>) {
-    memory[1] = 12;
-    memory[2] = 2;
+    set_memory_parameters(memory, 12, 2);
+}
+
+fn set_memory_parameters(memory: &mut Vec<i32>, first: i32, second: i32) {
+    memory[1] = first;
+    memory[2] = second;
+}
+
+type GenError = Box<dyn std::error::Error>;
+type GenResult<T> = Result<T, GenError>;
+
+pub fn brut_force_program(filename: &str) -> GenResult<i32> {
+    let memory = read_program_content(filename)?;
+    let program = parse_program(&memory);
+    for noun in 0..100 {
+        for verb in 0..100 {
+            let mut mem = memory.clone();
+            set_memory_parameters(&mut mem, noun, verb);
+            program.run(&mut mem);
+            if mem[0] == 19690720 {
+                return Ok(100 * noun + verb)
+            }
+        }
+    }
+    Err(Box::from("no pair found for the expecting result"))
 }
 
 #[cfg(test)]
