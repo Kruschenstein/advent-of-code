@@ -39,6 +39,17 @@ impl Instruction {
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct Program {
+    program: Vec<Instruction>
+}
+
+impl Program {
+    fn run(&self, memory: &mut Vec<i32>) {
+        self.program.iter().for_each(|instruction| instruction.execute(memory));
+    }
+}
+
 fn read_program_content(filename: &str) -> io::Result<Vec<i32>> {
     let file = File::open(filename)?;
     let mut reader = BufReader::new(file);
@@ -52,7 +63,7 @@ fn transform_program_into_readable_sequence(program: &str) -> Vec<i32> {
     program.split(',').map(|elem| elem.trim().parse().expect("number")).collect()
 }
 
-fn parse_ast(program: &Vec<i32>) -> Vec<Instruction> {
+fn parse_program(program: &Vec<i32>) -> Program {
     let mut result = vec![];
     let mut iterator = program.iter();
 
@@ -62,19 +73,19 @@ fn parse_ast(program: &Vec<i32>) -> Vec<Instruction> {
             2 => result.push(Instruction::Mul(Position::from(&mut iterator))),
             99 => {
                 result.push(Instruction::Halt);
-                return result;
+                break;
             }
             _ => panic!("program does not having HALT(99) instruction")
         }
     }
-    result
+    Program { program: result }
 }
 
 pub fn program_first_place_value_during_1202(filename: &str) -> io::Result<i32> {
     let mut memory = read_program_content(filename)?;
     reset_memory_before_1202(&mut memory);
-    let program_ast = parse_ast(&memory);
-    program_ast.iter().for_each(|instruction| instruction.execute(&mut memory));
+    let program = parse_program(&memory);
+    program.run(&mut memory);
     Ok(memory[0])
 }
 
@@ -105,28 +116,28 @@ mod test {
         }
     }
 
-    mod parse_ast {
+    mod parse_program {
         use super::*;
 
         #[test]
         fn should_parse_add_sequence() {
             let program = vec![1, 9, 10, 3];
             assert_eq!(vec![Instruction::Add(Position { first: 9, second: 10, result: 3 })],
-                       parse_ast(&program));
+                       parse_program(&program).program);
         }
 
         #[test]
         fn should_parse_mul_sequence() {
             let program = vec![2, 9, 10, 3];
             assert_eq!(vec![Instruction::Mul(Position { first: 9, second: 10, result: 3 })],
-                       parse_ast(&program));
+                       parse_program(&program).program);
         }
 
         #[test]
         fn should_parse_halt_instruction() {
             let program = vec![99];
             assert_eq!(vec![Instruction::Halt],
-                       parse_ast(&program));
+                       parse_program(&program).program);
         }
 
         #[test]
@@ -137,19 +148,21 @@ mod test {
                 Instruction::Mul(Position { first: 3, second: 11, result: 0 }),
                 Instruction::Halt
             ];
-            assert_eq!(expected_ast, parse_ast(&program));
+            assert_eq!(expected_ast, parse_program(&program).program);
         }
     }
 
     #[test]
     fn program_should_execute() {
         let mut memory = vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50];
-        let program = vec![
-            Instruction::Add(Position { first: 9, second: 10, result: 3 }),
-            Instruction::Mul(Position { first: 3, second: 11, result: 0 }),
-            Instruction::Halt
-        ];
-        program.iter().for_each(|instruction| instruction.execute(&mut memory));
+        let program = Program {
+            program: vec![
+                Instruction::Add(Position { first: 9, second: 10, result: 3 }),
+                Instruction::Mul(Position { first: 3, second: 11, result: 0 }),
+                Instruction::Halt
+            ]
+        };
+        program.run(&mut memory);
         assert_eq!(vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50], memory);
     }
 }
