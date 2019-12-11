@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error, ErrorKind};
 
@@ -26,15 +25,6 @@ impl Direction {
         }
     }
 
-    fn draw_line_from(&self, (x, y): &Point) -> HashSet<Point> {
-        match self {
-            Direction::Up(val) => (0..*val).map(|i| (*x, *y + i)).collect(),
-            Direction::Right(val) => (0..*val).map(|i| (*x + i, *y)).collect(),
-            Direction::Down(val) => (0..*val).map(|i| (*x, *y - i)).collect(),
-            Direction::Left(val) => (0..*val).map(|i| (*x - i, *y)).collect(),
-        }
-    }
-
     fn new_position(&self, (x, y): &Point) -> Point {
         match self {
             Direction::Up(val) => (*x, *y + *val),
@@ -58,19 +48,43 @@ pub fn smallest_intersection(filename: &str) -> GenResult<i32> {
 
     let mut res = vec![];
     for wire_direction in wires_direction {
-        let mut points = HashSet::new();
+        let mut points = vec![];
         let mut x = 0;
         let mut y = 0;
         for direction in wire_direction {
-            points = &points | &direction.draw_line_from(&(x, y));
             let new_origin = direction.new_position(&(x, y));
+            points.push(((x, y), new_origin));
             x = new_origin.0;
             y = new_origin.1;
         }
         res.push(points);
     }
 
-    let result = &res[0] & &res[1];
+    fn is_between(x_min: &i32, x: &i32, x_max: &i32) -> bool {
+        x_min <= x && x <= x_max
+    }
+
+    let mut result = vec![];
+    for (i, e1) in res.iter().enumerate() {
+        for e2 in &res[i + 1..] {
+            for s in e1 {
+                for t in e2 {
+                    match (s, t) {
+                        (((x1, y1), (x2, y2)),
+                            ((x3, y3), (x4, y4))) |
+                        (((x3, y3), (x4, y4)),
+                            ((x1, y1), (x2, y2)))
+                        if x1 == x2 && y3 == y4 &&
+                            (is_between(x3, x1, x4) || is_between(x4, x1, x3)) &&
+                            (is_between(y1, y3, y2) || is_between(y2, y3, y1))
+                        =>
+                            result.push((x1, y3)),
+                        _ => ()
+                    }
+                }
+            }
+        }
+    }
 
     Ok(result.iter().filter(|(x, y)| *x + *y != 0).map(|(x, y)| x.abs() + y.abs()).min().expect("result"))
 }
