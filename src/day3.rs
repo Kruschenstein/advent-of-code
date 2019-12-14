@@ -12,7 +12,25 @@ enum Direction {
 }
 
 type Point = (i32, i32);
-type Segment = ((i32, i32), (i32, i32));
+
+struct Segment(Point, Point);
+
+impl Segment {
+    fn distance(&self) -> i32 {
+        ((((self.0).0 - (self.1).0).pow(2)
+            + ((self.0).1 - (self.1).1).pow(2)) as f64).sqrt() as i32
+    }
+}
+
+struct WireInfo {
+    segment: Segment,
+    distance_from_origin: i32,
+}
+
+struct IntersectionInfo {
+    intersection: Point,
+    distance_from_origin: i32,
+}
 
 impl Direction {
     fn from(string: &str) -> GenResult<Direction> {
@@ -34,9 +52,18 @@ impl Direction {
             Direction::Left(val) => (*x - *val, *y),
         }
     }
+
+    fn distance_from(&self, distance: i32) -> i32 {
+        distance + *match self {
+            Direction::Up(val) => val,
+            Direction::Right(val) => val,
+            Direction::Down(val) => val,
+            Direction::Left(val) => val,
+        }
+    }
 }
 
-pub fn smallest_intersection(filename: &str) -> GenResult<i32> {
+fn compute_intersection_info(filename: &str) -> GenResult<Vec<IntersectionInfo>> {
     let file = File::open(filename)?;
     let reader = BufReader::new(file);
 
@@ -47,29 +74,44 @@ pub fn smallest_intersection(filename: &str) -> GenResult<i32> {
             .collect())
         .collect();
 
-    Ok(intersections(&wires_segments(wires_direction)).iter()
+    Ok(intersections(&wires_segments(wires_direction)))
+}
+
+pub fn nearest_intersection_from_origin(filename: &str) -> GenResult<i32> {
+    compute_intersection_info(filename).map(|intersection| intersection.iter()
+        .map(|intersection| intersection.intersection)
         .filter(|(x, y)| *x + *y != 0)
         .map(|(x, y)| x.abs() + y.abs())
         .min()
         .expect("result"))
 }
 
-fn wires_segments(wires_direction: Vec<Vec<Direction>>) -> Vec<Vec<Segment>> {
+pub fn smallest_intersection_distance_from_origin(filename: &str) -> GenResult<i32> {
+    compute_intersection_info(filename).map(|intersection| intersection.iter()
+        .map(|intersection| intersection.distance_from_origin)
+        .filter(|distance | *distance != 0)
+        .min()
+        .expect("result"))
+}
+
+fn wires_segments(wires_direction: Vec<Vec<Direction>>) -> Vec<Vec<WireInfo>> {
     let mut res = vec![];
     for wire_direction in wires_direction {
         let mut points = vec![];
         let mut origin = (0, 0);
+        let mut distance = 0;
         for direction in wire_direction {
             let new_origin = direction.new_position(&origin);
-            points.push((origin, new_origin));
+            points.push(WireInfo { distance_from_origin: distance, segment: Segment(origin, new_origin) });
             origin = new_origin;
+            distance = direction.distance_from(distance);
         }
         res.push(points);
     }
     res
 }
 
-fn intersections(res: &Vec<Vec<((i32, i32), (i32, i32))>>) -> Vec<(i32, i32)> {
+fn intersections(res: &Vec<Vec<WireInfo>>) -> Vec<IntersectionInfo> {
     let mut result = vec![];
     for (i, e1) in res.iter().enumerate() {
         for e2 in &res[i + 1..] {
@@ -79,18 +121,26 @@ fn intersections(res: &Vec<Vec<((i32, i32), (i32, i32))>>) -> Vec<(i32, i32)> {
     result
 }
 
-fn find_intersection_points(e1: &Vec<Segment>, e2: &Vec<Segment>) -> Vec<Point> {
+fn find_intersection_points(e1: &Vec<WireInfo>, e2: &Vec<WireInfo>) -> Vec<IntersectionInfo> {
     let mut res = vec![];
     for s in e1 {
         for t in e2 {
-            match (s, t) {
-                (((x1, y1), (x2, y2)),
-                    ((x3, y3), (x4, y4))) |
-                (((x3, y3), (x4, y4)),
-                    ((x1, y1), (x2, y2)))
+            match &(&s.segment, &t.segment) {
+                (Segment((x1, y1), (x2, y2)),
+                    Segment((x3, y3), (x4, y4))) |
+                (Segment((x3, y3), (x4, y4)),
+                    Segment((x1, y1), (x2, y2)))
                 if x1 == x2 && y3 == y4 &&
-                    is_framed(x3, x1, x4) && is_framed(y1, y3, y2) =>
-                    res.push((*x1, *y3)),
+                    is_framed(x3, x1, x4) && is_framed(y1, y3, y2) => {
+                    let Segment(s_first, _) = s.segment;
+                    let Segment(t_first, _) = t.segment;
+                    let intersection = (*x1, *y3);
+                    let distance_from_origin= s.distance_from_origin + t.distance_from_origin +
+                        Segment(s_first, intersection).distance() +
+                        Segment(t_first, intersection).distance();
+
+                    res.push(IntersectionInfo { intersection, distance_from_origin })
+                }
                 _ => ()
             }
         }

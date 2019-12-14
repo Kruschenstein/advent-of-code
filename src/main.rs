@@ -17,7 +17,8 @@ fn main() -> std::io::Result<()> {
     println!("day1: Part2 = {}", fuel_quantity_for_modules_and_fuel_mass(day1_input_filename)?);
     println!("day2: Part1 = {}", program_first_place_value_during_1202(day2_input_filename)?);
     println!("day2: Part2 = {}", brut_force_program(day2_input_filename).expect("solution"));
-    println!("day3: Part1 = {}", smallest_intersection(day3_input_filename).expect("solution"));
+    println!("day3: Part1 = {}", nearest_intersection_from_origin(day3_input_filename).expect("solution"));
+    println!("day3: Part1 = {}", smallest_intersection_distance_from_origin(day3_input_filename).expect("solution"));
 
     Ok(())
 }
